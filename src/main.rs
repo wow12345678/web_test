@@ -27,6 +27,7 @@ async fn main() {
         .route("/about", get(about))
         .route("/contact", get(contact))
         .route("/search", get(search))
+        .route("/funny_list", get(lister))
         .route_service("/cargo", ServeFile::new("Cargo.toml"))
         .route("/add", post(adder))
         .with_state(shared_state);
@@ -49,18 +50,9 @@ struct AppState {
 }
 
 #[derive(Template, Debug)]
-#[template(
-    ext = "html",
-    source = r#"
-    {% for item in funny_items%}
-    <ul>
-        <li>{{ item }}</li>
-    </ul>
-    {% endfor %}
-"#
-)]
-struct FunnyList<'a> {
-    funny_items: Vec<&'a str>,
+#[template(path = "lister.html")]
+struct FunnyList {
+    funny_items: Vec<String>,
 }
 
 async fn adder(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
@@ -76,22 +68,33 @@ async fn adder(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
 }
 
 async fn homepage() -> Html<String> {
-    let content = read_to_string("static/index.html").unwrap();
+    let content = read_to_string("templates/index.html").unwrap();
     Html(content)
 }
 
+async fn lister(State(state): State<Arc<Mutex<AppState>>>) -> Result<impl IntoResponse, AppError> {
+    let state_lock = state.lock().unwrap_or_else(|err| {
+        println!("The mutex was poisoned 😱");
+        PoisonError::into_inner(err)
+    });
+    let funny_list = FunnyList {
+        funny_items: state_lock.funny_list.clone(),
+    };
+    Ok(Html(funny_list.render()?))
+}
+
 async fn about() -> Html<String> {
-    let content = read_to_string("static/templates/about.html").unwrap();
+    let content = read_to_string("templates/about.html").unwrap();
     Html(content)
 }
 
 async fn contact() -> Html<String> {
-    let content = read_to_string("static/templates/contact.html").unwrap();
+    let content = read_to_string("templates/contact.html").unwrap();
     Html(content)
 }
 
 async fn search() -> Html<String> {
-    let content = read_to_string("static/templates/search.html").unwrap();
+    let content = read_to_string("templates/search.html").unwrap();
     Html(content)
 }
 
