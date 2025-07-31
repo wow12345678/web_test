@@ -25,7 +25,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(homepage))
         .route("/about", get(about))
-        .route("/contact", get(contact))
+        .route("/chat_test", get(chat_test))
         .route("/search", get(search))
         .route("/funny_list", get(lister))
         .route_service("/cargo", ServeFile::new("Cargo.toml"))
@@ -88,8 +88,8 @@ async fn about() -> Html<String> {
     Html(content)
 }
 
-async fn contact() -> Html<String> {
-    let content = read_to_string("templates/contact.html").unwrap();
+async fn chat_test() -> Html<String> {
+    let content = read_to_string("templates/chat_test.html").unwrap();
     Html(content)
 }
 
