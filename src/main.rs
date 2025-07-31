@@ -1,36 +1,35 @@
 use askama::Template;
-use axum::extract::State;
-use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse};
+use axum::extract::{Form, State};
+use axum::http::{Response, StatusCode};
+use axum::response::{Html, IntoResponse, Redirect};
 use axum::routing::post;
 use axum::{Router, routing::get};
+use bcrypt::{DEFAULT_COST, hash, verify};
 use std::fs::read_to_string;
-use std::sync::Mutex;
-use std::sync::{Arc, PoisonError};
-use tower_http::services::ServeFile;
+use std::sync::{Arc, Mutex, PoisonError};
+use toml::{Table, Value, map::Map};
+use tower_cookies::{Cookie, CookieManagerLayer, Cookies};
+
+struct AppState {
+    users: Map<String, Value>,
+}
 
 #[tokio::main]
 async fn main() {
-    let shared_state = Arc::new(Mutex::new(AppState {
-        funny_list: vec![
-            "hahaah".into(),
-            "das".into(),
-            "ist".into(),
-            "so".into(),
-            "lustig".into(),
-        ],
-        funny_number: 69,
-    }));
+    let passwords = read_to_string("users.toml").unwrap();
+    let users = passwords.parse::<Table>().unwrap();
+
+    let state = Arc::new(Mutex::new(AppState { users }));
 
     let app = Router::new()
         .route("/", get(homepage))
         .route("/about", get(about))
-        .route("/chat_test", get(chat_test))
+        .route("/chat", get(chat))
         .route("/search", get(search))
-        .route("/funny_list", get(lister))
-        .route_service("/cargo", ServeFile::new("Cargo.toml"))
-        .route("/add", post(adder))
-        .with_state(shared_state);
+        .route("/login", get(login_page))
+        .route("/login", post(login_handler))
+        .layer(CookieManagerLayer::new())
+        .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
@@ -43,28 +42,43 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-#[derive(Debug)]
-struct AppState {
-    funny_list: Vec<String>,
-    funny_number: u32,
+async fn login_page() -> Html<String> {
+    let content = read_to_string("templates/login.html")
+        .unwrap_or_else(|_| "<h1>Login Page Not Found</h1>".to_string());
+    Html(content)
 }
 
-#[derive(Template, Debug)]
-#[template(path = "lister.html")]
-struct FunnyList {
-    funny_items: Vec<String>,
+async fn login_handler(
+    State(state): State<Arc<Mutex<AppState>>>,
+    cookies: Cookies,
+    Form(form): Form<LoginForm>,
+) -> Html<String> {
+    let username = form.username.clone();
+    let password = form.password.clone();
+    let state_lock = state.lock().unwrap_or_else(PoisonError::into_inner);
+
+    if state_lock
+        .users
+        .get(&username)
+        .is_some_and(|p| verify(password, p["password"].as_str().unwrap()).unwrap())
+    {
+        cookies.add(Cookie::new("auth", "1"));
+        Html("<div class='success' style='color: green; padding: 10px; margin-top: 10px;'>Login successful!</div>".to_string())
+    } else {
+        Html("<div class='error' style='color: red; padding: 10px; margin-top: 10px;'>Invalid username or password</div>".to_string())
+    }
 }
 
-async fn adder(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
-    println!("button pressed 😄");
-    let mut state_lock = state.lock().unwrap_or_else(|err| {
-        println!("The mutex was poisoned 😱");
-        PoisonError::into_inner(err)
-    });
-    state_lock.funny_number += 1;
-    state_lock.funny_list.push("woow".into());
+#[derive(Debug, serde::Deserialize)]
+struct LoginForm {
+    username: String,
+    password: String,
+}
 
-    Html("Click Me!")
+#[derive(Template)]
+#[template(path = "chat.html")]
+struct ChatPage {
+    is_logged_in: bool,
 }
 
 async fn homepage() -> Html<String> {
@@ -72,25 +86,15 @@ async fn homepage() -> Html<String> {
     Html(content)
 }
 
-async fn lister(State(state): State<Arc<Mutex<AppState>>>) -> Result<impl IntoResponse, AppError> {
-    let state_lock = state.lock().unwrap_or_else(|err| {
-        println!("The mutex was poisoned 😱");
-        PoisonError::into_inner(err)
-    });
-    let funny_list = FunnyList {
-        funny_items: state_lock.funny_list.clone(),
-    };
-    Ok(Html(funny_list.render()?))
-}
-
 async fn about() -> Html<String> {
     let content = read_to_string("templates/about.html").unwrap();
     Html(content)
 }
 
-async fn chat_test() -> Html<String> {
-    let content = read_to_string("templates/chat_test.html").unwrap();
-    Html(content)
+async fn chat(cookies: Cookies) -> Result<impl IntoResponse, AppError> {
+    let is_logged_in = cookies.get("auth").is_some();
+    let chat_page = ChatPage { is_logged_in };
+    Ok(Html(chat_page.render()?))
 }
 
 async fn search() -> Html<String> {
