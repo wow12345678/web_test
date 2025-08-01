@@ -23,9 +23,18 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(homepage))
-        .route("/about", get(about))
-        .route("/chat", get(chat))
-        .route("/search", get(search))
+        .route(
+            "/chat/ana",
+            get(|cookies: Cookies| chat(ChatPageType::Ana, cookies)),
+        )
+        .route(
+            "/chat/la",
+            get(|cookies: Cookies| chat(ChatPageType::Ana, cookies)),
+        )
+        .route(
+            "/chat/eaz",
+            get(|cookies: Cookies| chat(ChatPageType::Ana, cookies)),
+        )
         .route("/login", get(login_page))
         .route("/login", post(login_handler))
         .layer(CookieManagerLayer::new())
@@ -55,7 +64,10 @@ async fn login_handler(
 ) -> Html<String> {
     let username = form.username.clone();
     let password = form.password.clone();
-    let state_lock = state.lock().unwrap_or_else(PoisonError::into_inner);
+    let state_lock = state.lock().unwrap_or_else(|poison_error| {
+        println!("Mutex was poisoned!");
+        PoisonError::into_inner(poison_error)
+    });
 
     if state_lock
         .users
@@ -79,6 +91,12 @@ struct LoginForm {
 #[template(path = "chat.html")]
 struct ChatPage {
     is_logged_in: bool,
+    c_type: ChatPageType,
+}
+enum ChatPageType {
+    Ana,
+    La,
+    Eaz,
 }
 
 async fn homepage() -> Html<String> {
@@ -86,20 +104,13 @@ async fn homepage() -> Html<String> {
     Html(content)
 }
 
-async fn about() -> Html<String> {
-    let content = read_to_string("templates/about.html").unwrap();
-    Html(content)
-}
-
-async fn chat(cookies: Cookies) -> Result<impl IntoResponse, AppError> {
+async fn chat(c_type: ChatPageType, cookies: Cookies) -> Result<impl IntoResponse, AppError> {
     let is_logged_in = cookies.get("auth").is_some();
-    let chat_page = ChatPage { is_logged_in };
+    let chat_page = ChatPage {
+        is_logged_in,
+        c_type,
+    };
     Ok(Html(chat_page.render()?))
-}
-
-async fn search() -> Html<String> {
-    let content = read_to_string("templates/search.html").unwrap();
-    Html(content)
 }
 
 #[derive(Debug, displaydoc::Display, thiserror::Error)]
