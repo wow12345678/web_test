@@ -1,36 +1,46 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Contact Page</title>
-    <link rel="stylesheet" href="/static/css/style.css" />
-  </head>
-  <body>
-    {% if is_logged_in%}
-    {% match c_type %}
-    {% when ChatPageType::Ana %}
-    <script
-            async
-            src="https://khh3uyuuopn3575bfwxza6kn.agents.do-ai.run/static/chatbot/widget.js"
-            data-agent-id="090c479f-6e26-11f0-bf8f-4e013e2ddde4"
-            data-chatbot-id="tBf4PoAmNxqqa-xMRVjMdrBTv46Kj2l2"
-            data-name="anaSkriptModel Chatbot"
-            data-primary-color="#031B4E"
-            data-secondary-color="#E5E8ED"
-            data-button-background-color="#0061EB"
-            data-starting-message="Hello! How can I help you today?"
-            data-logo="/static/chatbot/icons/default-agent.svg"
-            ></script>
-    {% when ChatPageType::La %}
-    <p> Not yet implemented </p>
-    {% when ChatPageType::Eaz %}
-    <p> Not yet implemented </p>
-    {% endmatch %}
-    {% else %}
-    <main>
-        <p> you are not logged in :(</p>
-    </main>
-    {% endif %}
-  </body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Super toller Chat</title>
+        <link rel="stylesheet" href="/static/css/style.css" />
+    </head>
+    <body>
+        <main>
+        {% if is_logged_in%}
+        {% match c_type %}
+            {% when ChatPageType::Ana %}
+            <script
+                    async
+                    src="https://khh3uyuuopn3575bfwxza6kn.agents.do-ai.run/static/chatbot/widget.js"
+                    data-agent-id="090c479f-6e26-11f0-bf8f-4e013e2ddde4"
+                    data-chatbot-id="tBf4PoAmNxqqa-xMRVjMdrBTv46Kj2l2"
+                    data-name="anaSkriptModel Chatbot"
+                    data-primary-color="#031B4E"
+                    data-secondary-color="#E5E8ED"
+                    data-button-background-color="#0061EB"
+                    data-starting-message="Hello! How can I help you today?"
+                    data-logo="/static/chatbot/icons/default-agent.svg"
+                    ></script>
+            {% when ChatPageType::La %}
+            <script async
+                    src="https://akac6ifripk5yeramh6ggcnj.agents.do-ai.run/static/chatbot/widget.js"
+                    data-agent-id="80c5b497-6f9b-11f0-bf8f-4e013e2ddde4"
+                    data-chatbot-id="SHn_SSSzTdM36-wslADAesWqs1ny59Tq"
+                    data-name="laSkript Chatbot"
+                    data-primary-color="#031B4E"
+                    data-secondary-color="#E5E8ED"
+                    data-button-background-color="#0061EB"
+                    data-starting-message="Hello! How can I help you today?"
+                    data-logo="/static/chatbot/icons/default-agent.svg">
+            </script>
+            {% when ChatPageType::Eaz %}
+            <p> Not yet implemented </p>
+            {% endmatch %}
+        {% else %}
+            <p> you are not logged in :(</p>
+        {% endif %}
+        </main>
+    </body>
 </html>
