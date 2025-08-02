@@ -4,14 +4,18 @@ use axum::http::{Response, StatusCode};
 use axum::response::{Html, IntoResponse, Redirect};
 use axum::routing::post;
 use axum::{Router, routing::get};
-use bcrypt::{DEFAULT_COST, hash, verify};
+use bcrypt::{DEFAULT_COST, verify};
+use std::collections::HashMap;
 use std::fs::read_to_string;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Arc, Mutex, PoisonError};
 use toml::{Table, Value, map::Map};
-use tower_cookies::{Cookie, CookieManagerLayer, Cookies};
+use tower_cookies::{Cookie, CookieManagerLayer, Cookies, Key};
 
 struct AppState {
     users: Map<String, Value>,
+    current_users: HashMap<String, u64>,
+    cookie_key: Key,
 }
 
 #[tokio::main]
@@ -19,21 +23,33 @@ async fn main() {
     let passwords = read_to_string("users.toml").unwrap();
     let users = passwords.parse::<Table>().unwrap();
 
-    let state = Arc::new(Mutex::new(AppState { users }));
+    let cookie_key = Key::generate();
+
+    let state = Arc::new(Mutex::new(AppState {
+        users,
+        current_users: HashMap::new(),
+        cookie_key,
+    }));
 
     let app = Router::new()
         .route("/", get(homepage))
         .route(
             "/chat/ana",
-            get(|cookies: Cookies| chat(ChatPageType::Ana, cookies)),
+            get(|cookies: Cookies, state: State<Arc<Mutex<AppState>>>| {
+                chat(ChatPageType::Ana, cookies, state)
+            }),
         )
         .route(
             "/chat/la",
-            get(|cookies: Cookies| chat(ChatPageType::Ana, cookies)),
+            get(|cookies: Cookies, state: State<Arc<Mutex<AppState>>>| {
+                chat(ChatPageType::La, cookies, state)
+            }),
         )
         .route(
             "/chat/eaz",
-            get(|cookies: Cookies| chat(ChatPageType::Ana, cookies)),
+            get(|cookies: Cookies, state: State<Arc<Mutex<AppState>>>| {
+                chat(ChatPageType::Eaz, cookies, state)
+            }),
         )
         .route("/login", get(login_page))
         .route("/login", post(login_handler))
@@ -74,7 +90,14 @@ async fn login_handler(
         .get(&username)
         .is_some_and(|p| verify(password, p["password"].as_str().unwrap()).unwrap())
     {
-        cookies.add(Cookie::new("auth", "1"));
+        let private_jar = cookies.private(&state_lock.cookie_key);
+        private_jar.add(
+            Cookie::build(("auth", username))
+                .secure(true)
+                .http_only(true)
+                .build(),
+        );
+
         Html("<div class='success' style='color: green; padding: 10px; margin-top: 10px;'>Login successful!</div>".to_string())
     } else {
         Html("<div class='error' style='color: red; padding: 10px; margin-top: 10px;'>Invalid username or password</div>".to_string())
@@ -104,8 +127,16 @@ async fn homepage() -> Html<String> {
     Html(content)
 }
 
-async fn chat(c_type: ChatPageType, cookies: Cookies) -> Result<impl IntoResponse, AppError> {
-    let is_logged_in = cookies.get("auth").is_some();
+async fn chat(
+    c_type: ChatPageType,
+    cookies: Cookies,
+    State(state): State<Arc<Mutex<AppState>>>,
+) -> Result<impl IntoResponse, AppError> {
+    let state_lock = state.lock().unwrap();
+    let private_jar = cookies.private(&state_lock.cookie_key);
+
+    let is_logged_in = private_jar.get("auth").is_some();
+
     let chat_page = ChatPage {
         is_logged_in,
         c_type,
